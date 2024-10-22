@@ -1,6 +1,6 @@
 from rest_framework import viewsets
-from employees.serializers import EmployeeSerializer, DocumentSerializer
-from accounts.permissions import IsAdminUser, IsHRUser, IsAdminOrHR
+from employees.serializers import DocumentRequestSerializer, EmployeeSerializer, DocumentSerializer
+from accounts.permissions import IsAdminUser, IsHRUser, IsAdminOrHR, IsOwnerOrAdminOrHR, IsOwnerOrCanEdit
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -8,7 +8,7 @@ from django.utils.http import urlsafe_base64_decode
 from django.contrib.auth.tokens import PasswordResetTokenGenerator
 from django.contrib.auth import get_user_model
 from rest_framework import status
-from .models import Document
+from .models import Document, DocumentRequest
 from employees.models import Employee, EmployeeJobDetails, EmployeePersonalDetails
 from employees.serializers import EmployeeProfileSerializer, PersonalInfoSerializer, JobDetailsSerializer
 from employees.usecases.send_info_link import SendInfoLinkUseCase
@@ -41,25 +41,27 @@ from employees.usecases.send_info_link import SendInfoLinkUseCase
 #         print(f"Applying permissions: {self.permission_classes}")
 #         return [permission() for permission in permission_classes]
 
+
+
+
+
 class EmployeeViewSet(viewsets.ModelViewSet):
     queryset = Employee.objects.all()
     serializer_class = EmployeeSerializer
 
     def get_permissions(self):
-        permission_classes = [IsAuthenticated]
-
         if self.action == 'create':
-            permission_classes.append(IsHRUser)
+            self.permission_classes = [IsAuthenticated, IsHRUser]
         elif self.action in ['update', 'partial_update', 'destroy']:
-            permission_classes.append(IsAdminUser)
+            self.permission_classes = [IsAuthenticated, IsOwnerOrCanEdit]
         elif self.action == 'list':
-            permission_classes.append(IsAdminOrHR)
+            self.permission_classes = [IsAuthenticated, IsAdminOrHR]
         elif self.action == 'retrieve':
-            permission_classes.append(IsAdminOrHR)
+            self.permission_classes = [IsAuthenticated, IsOwnerOrCanEdit]
         else:
-            permission_classes.append(IsAdminOrHR)
+            self.permission_classes = [IsAuthenticated, IsAdminOrHR]
         print(f"Applying permissions: {self.permission_classes}")
-        return [permission() for permission in permission_classes]
+        return [permission() for permission in self.permission_classes]
 
     def create(self, request, *args, **kwargs):
         data = request.data.copy()
@@ -92,6 +94,9 @@ class EmployeeViewSet(viewsets.ModelViewSet):
         data = request.data.copy()
         files = request.FILES
 
+        # Logging to check incoming data
+        print("Received data for update:", data)
+
         # Handle profile picture
         if 'profile_picture' in files:
             data['image'] = files['profile_picture']
@@ -102,6 +107,7 @@ class EmployeeViewSet(viewsets.ModelViewSet):
 
         serializer = self.get_serializer(instance, data=data, partial=partial)
         serializer.is_valid(raise_exception=True)
+        print("Validated data:", serializer.validated_data)
         employee = serializer.save()
 
         # Handle documents
@@ -111,6 +117,9 @@ class EmployeeViewSet(viewsets.ModelViewSet):
             Document.objects.create(employee=employee, name='Passport', file=passport_file)
 
         return Response(EmployeeSerializer(employee).data)
+
+
+
 
 class EmployeeProfileView(APIView):
     
@@ -263,18 +272,69 @@ class EmployeeDocumentsView(APIView):
 
     def get(self, request, employee_id):
         try:
-            # Get the employee based on the passed user_id, not employee_id
             employee = Employee.objects.get(user_id=employee_id)
 
-            
+            # Make sure the requesting user has permission to view these documents
             if employee.user != request.user and not request.user.is_staff:
                 return Response({"detail": "You do not have permission to access this employee's documents."}, status=status.HTTP_403_FORBIDDEN)
 
-           
             documents = Document.objects.filter(employee=employee)
-            serializer = DocumentSerializer(documents, many=True)
-
+            serializer = DocumentSerializer(documents, many=True, context={'request': request})  # Pass request here
             return Response(serializer.data, status=status.HTTP_200_OK)
 
         except Employee.DoesNotExist:
             return Response({"detail": "Employee not found."}, status=status.HTTP_404_NOT_FOUND)
+        
+
+
+
+
+class DocumentViewSet(viewsets.ModelViewSet):
+    queryset = Document.objects.all()
+    serializer_class = DocumentSerializer
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            permission_classes = [IsAuthenticated, IsOwnerOrAdminOrHR]
+        elif self.action in ['create']:
+            permission_classes = [IsAuthenticated]
+        elif self.action in ['update', 'partial_update', 'destroy']:
+            permission_classes = [IsAuthenticated, IsAdminOrHR]
+        else:
+            permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes]
+
+    def perform_create(self, serializer):
+        # Set the employee to the current user
+        serializer.save(employee=self.request.user.employee)
+
+
+
+
+class DocumentRequestViewSet(viewsets.ModelViewSet):
+    queryset = DocumentRequest.objects.all()
+    serializer_class = DocumentRequestSerializer
+
+    def get_permissions(self):
+        if self.action in ['create']:
+            permission_classes = [IsAuthenticated, IsAdminOrHR]
+        elif self.action in ['update', 'partial_update', 'destroy']:
+            permission_classes = [IsAuthenticated, IsAdminOrHR]
+        elif self.action in ['retrieve', 'list']:
+            permission_classes = [IsAuthenticated]
+        else:
+            permission_classes = [IsAuthenticated]
+        return [permission() for permission in permission_classes]
+
+    def perform_create(self, serializer):
+        serializer.save(requested_by=self.request.user)
+
+    def get_queryset(self):
+        user = self.request.user
+        if user.is_admin or user.is_hr:
+            return DocumentRequest.objects.all()
+        else:
+            return DocumentRequest.objects.filter(employee__user=user)
+
+
+

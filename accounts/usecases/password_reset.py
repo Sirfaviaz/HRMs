@@ -26,6 +26,8 @@ class PasswordResetUseCase:
         # Create a password reset link
         password_reset_link = f"{settings.FRONTEND_URL}/reset-password/{uid}/{token}"
 
+        print("pwd",password_reset_link)
+
         # Render the email template with context
         email_html_message = render_to_string('emails/password_reset.html', {
             'user': user,

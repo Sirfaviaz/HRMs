@@ -1,6 +1,7 @@
 from django.db import models
 from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin, BaseUserManager
 from departments.models import Department
+from django.conf import settings
 
 class CustomUserManager(BaseUserManager):
     def create_user(self, username, email, password=None, **extra_fields):
@@ -46,3 +47,14 @@ class User(AbstractBaseUser, PermissionsMixin):
 
     def __str__(self):
         return self.email or self.username
+
+
+class UserPermissionAudit(models.Model):
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='audit_logs')
+    changed_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='permission_changes')
+    timestamp = models.DateTimeField(auto_now_add=True)
+    previous_permissions = models.JSONField()
+    new_permissions = models.JSONField()
+
+    def __str__(self):
+        return f"Permission change for {self.user.email or self.user.username} by {self.changed_by.email or self.changed_by.username} at {self.timestamp}"

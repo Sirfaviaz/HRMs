@@ -46,3 +46,22 @@ class PasswordResetView(APIView):
         response, status_code = PasswordResetUseCase.reset_password(uidb64, token, new_password)
         return Response(response, status=status_code)
 
+from rest_framework import viewsets, permissions
+from rest_framework.response import Response
+from .models import User
+from .serializers import UserPermissionSerializer
+
+class UserPermissionViewSet(viewsets.ModelViewSet):
+    queryset = User.objects.all()
+    serializer_class = UserPermissionSerializer
+    permission_classes = [permissions.IsAuthenticated]
+
+    def update(self, request, *args, **kwargs):
+        user = request.user
+        if not (user.is_admin or user.is_hr):
+            return Response({'error': 'You do not have permission to update user permissions.'}, status=403)
+
+        instance = self.get_object()
+        instance._changed_by = user  # Set the user who is making the change
+
+        return super().update(request, *args, **kwargs)

@@ -1,9 +1,10 @@
 from rest_framework import serializers
-from employees.models import Employee, EmployeePersonalDetails, EmployeeJobDetails, Document
+from employees.models import DocumentRequest, Employee, EmployeePersonalDetails, EmployeeJobDetails, Document
 from accounts.models import User
 from accounts.serializers import UserSerializer
 from departments.serializers import DepartmentSerializer, PositionSerializer  # Import PositionSerializer
 from departments.models import Department, Position
+from django.conf import settings
 
 
 class EmployeePersonalDetailsSerializer(serializers.ModelSerializer):
@@ -24,8 +25,14 @@ class EmployeeSerializer(serializers.ModelSerializer):
     username = serializers.CharField(write_only=True)
 
     user = UserSerializer(read_only=True)
-    department = serializers.PrimaryKeyRelatedField(queryset=Department.objects.all())
-    position = serializers.PrimaryKeyRelatedField(queryset=Position.objects.all())
+    
+    # Read-only department and position details for GET requests
+    department_name = serializers.CharField(source='department.name', read_only=True)
+    position_title = serializers.CharField(source='position.title', read_only=True)
+
+    # ID for department and position for POST/PUT requests
+    department = serializers.PrimaryKeyRelatedField(queryset=Department.objects.all(), required=False)
+    position = serializers.PrimaryKeyRelatedField(queryset=Position.objects.all(), required=False)
 
     # Nested serializers
     personal_details = EmployeePersonalDetailsSerializer(required=False)
@@ -34,9 +41,12 @@ class EmployeeSerializer(serializers.ModelSerializer):
     class Meta:
         model = Employee
         fields = (
+            'id',
             'first_name', 'last_name', 'email', 'username',
-            'department', 'position', 'date_joined', 'user',
-            'image', 'personal_details', 'job_details',
+            'department', 'department_name',  # Include department_name
+            'position', 'position_title',  # Include position_title
+            'date_joined', 'user',
+            'image', 'personal_details', 'job_details','status'
         )
 
     def create(self, validated_data):
@@ -108,13 +118,14 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
 
 
+
 class EmployeeProfileSerializer(serializers.ModelSerializer):
     department = DepartmentSerializer(read_only=True)
     position = PositionSerializer(read_only=True)  # Add PositionSerializer for the position field
 
     class Meta:
         model = Employee
-        fields = ('user', 'department', 'position', 'date_joined', 'documents', 'image')
+        fields = ('id','user', 'department', 'position', 'date_joined', 'documents', 'image')
 
     def to_representation(self, instance):
         representation = super().to_representation(instance)
@@ -146,6 +157,25 @@ class DocumentUploadSerializer(serializers.ModelSerializer):
         fields = '__all__'
 
 class DocumentSerializer(serializers.ModelSerializer):
+    file_url = serializers.SerializerMethodField()
+
     class Meta:
         model = Document
-        fields = ['id', 'name', 'file', 'uploaded_at']
+        # fields = ['id', 'name', 'file_url', 'uploaded_at']
+        fields = '__all__'
+
+    def get_file_url(self, obj):
+        request = self.context.get('request', None)
+        if request:
+            return request.build_absolute_uri(obj.file.url)  # Use build_absolute_uri if request is available
+        else:
+            # Manually construct the full URL if request is not available
+            return f"{settings.MEDIA_URL}{obj.file.name}"
+
+
+
+class DocumentRequestSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DocumentRequest
+        fields = '__all__'
+        read_only_fields = ['requested_by', 'requested_at', 'status']

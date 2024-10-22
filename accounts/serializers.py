@@ -42,3 +42,15 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = ('id', 'first_name', 'last_name', 'email', 'username')
+
+
+class UserPermissionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = User
+        fields = "__all__" 
+
+    def validate(self, data):
+        request_user = self.context['request'].user
+        if not (request_user.is_admin or request_user.is_hr):
+            raise serializers.ValidationError("You do not have permission to set user permissions.")
+        return data

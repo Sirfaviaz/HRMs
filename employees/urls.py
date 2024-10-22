@@ -1,9 +1,11 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
-from employees.views import EmployeeViewSet, EmployeeProfileView, SendInfoLinkView, ValidateTokenView, SubmitPersonalInfoView,EmployeeDocumentsView
+from employees.views import DocumentRequestViewSet, DocumentViewSet, EmployeeViewSet, EmployeeProfileView, SendInfoLinkView, ValidateTokenView, SubmitPersonalInfoView,EmployeeDocumentsView
 
 router = DefaultRouter()
 router.register(r'employees', EmployeeViewSet, basename='employee')
+router.register(r'document-requests', DocumentRequestViewSet, basename='document-requests')
+router.register(r'documents', DocumentViewSet, basename='documents')
 
 urlpatterns = [
     path('', include(router.urls)),
