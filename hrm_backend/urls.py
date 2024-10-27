@@ -32,6 +32,9 @@ urlpatterns = [
     path('admin_app/',include('admin_app.urls')),
     path('attendance/',include('attendance.urls')),
     path('chat/',include('chat.urls')),
+    path('notifications/', include('notifications.urls')),
+    path('meetings/',include('meetings.urls')),
+    path('import-export/', include('data_import_export.urls')),
 
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
 

@@ -49,6 +49,11 @@ INSTALLED_APPS = [
     "admin_app", 
     'channels',
     'chat',
+    'notifications',
+    'meetings',
+    'import_export',
+    'data_import_export',
+    'django_extensions',
 ]
 
 MIDDLEWARE = [
@@ -131,6 +136,52 @@ DATABASES = {
 }
 
 
+# settings.py
+
+import os
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'verbose': {
+            'format': '{levelname} {asctime} {module} {message}',
+            'style': '{',
+        },
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'file': {
+            'level': 'DEBUG',
+            'class': 'logging.FileHandler',
+            'filename': os.path.join(BASE_DIR, 'debug.log'),  # Log file location
+            'formatter': 'verbose',
+        },
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple',
+        },
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['file', 'console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+        'myapp': {  # Use the name of the app you're logging from
+            'handlers': ['file', 'console'],
+            'level': 'DEBUG',
+            'propagate': True,
+        },
+    },
+}
+
+
+
 # CORS_ALLOWED_ORIGINS = [
 #     'http://localhost:3000',  
 # ]
@@ -193,5 +244,17 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 
 
-
 FRONTEND_URL = 'http://localhost:3000' 
+
+
+
+
+
+CELERY_BROKER_URL = 'redis://localhost:6379/0'  # Use Redis as the message broker
+CELERY_RESULT_BACKEND = 'redis://localhost:6379/0'
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+
+
+APPEND_SLASH = True  # Ensure this is set to True

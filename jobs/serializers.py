@@ -17,6 +17,20 @@ class StageSerializer(serializers.ModelSerializer):
         model = Stage
         fields = '__all__'  
 
+    def create(self, validated_data):
+        # Extract employee from validated data if it exists
+        employee = validated_data.pop('employee', None)
+
+        # Create the Stage instance
+        stage = Stage.objects.create(**validated_data)
+
+        # If there's an employee, associate it with the stage
+        if employee:
+            stage.employee = employee
+            stage.save()
+
+        return stage
+
 class StageSetSerializer(serializers.ModelSerializer):
     stages = StageSerializer(many=True, read_only=True)  # Optionally, you can nest stages within the stage set
     

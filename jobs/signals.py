@@ -2,6 +2,9 @@ from django.db.models.signals import post_save
 from django.dispatch import receiver
 from .models import CandidateApplication, CandidateStage, JobPosting
 from django.core.mail import send_mail
+from notifications.tasks import send_assignment_email, send_push_notification_task
+import json
+
 
 @receiver(post_save, sender=JobPosting)
 def check_vacancies_filled(sender, instance, **kwargs):
@@ -32,14 +35,35 @@ def update_candidate_status(sender, instance, **kwargs):
         instance.candidate_application.save()
 
 
+# jobs/signals.py
+
 @receiver(post_save, sender=CandidateStage)
 def notify_employee_assignment(sender, instance, created, **kwargs):
     if instance.assigned_employee and created:
-        # Send notification email
-        send_mail(
-            'New Stage Assigned',
-            f'You have been assigned to the stage: {instance.stage.name} for candidate {instance.candidate_application.first_name} {instance.candidate_application.last_name}.',
-            'noreply@yourcompany.com',
-            [instance.assigned_employee.user.email],
-            fail_silently=False,
+        subject = 'New Stage Assigned'
+        message = (
+            f'You have been assigned to the stage: {instance.stage.name} '
+            f'for candidate {instance.candidate_application.first_name} '
+            f'{instance.candidate_application.last_name}.'
+        )
+        recipient_list = [instance.assigned_employee.user.email]
+
+        # Send email asynchronously
+        send_assignment_email.delay(subject, message, recipient_list)
+
+        # Prepare push notification details
+        user_id = instance.assigned_employee.user.id
+        title = 'New Stage Assigned'
+        body = message
+        data_message = {
+            'stage_id': str(instance.stage.id),
+            'candidate_id': str(instance.candidate_application.id),
+        }
+
+        # Pass arguments as keyword arguments
+        send_push_notification_task.delay(
+            user_id=user_id,
+            title=title,
+            body=body,
+            data_message=data_message
         )

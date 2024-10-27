@@ -58,3 +58,8 @@ class UserPermissionAudit(models.Model):
 
     def __str__(self):
         return f"Permission change for {self.user.email or self.user.username} by {self.changed_by.email or self.changed_by.username} at {self.timestamp}"
+    
+
+
+
+
