@@ -1,9 +1,13 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+
+from notifications.models import Notification
 from .models import CandidateApplication, CandidateStage, JobPosting
 from django.core.mail import send_mail
 from notifications.tasks import send_assignment_email, send_push_notification_task
 import json
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 
 @receiver(post_save, sender=JobPosting)
@@ -39,6 +43,10 @@ def update_candidate_status(sender, instance, **kwargs):
 
 @receiver(post_save, sender=CandidateStage)
 def notify_employee_assignment(sender, instance, created, **kwargs):
+    """
+    This signal is triggered when a CandidateStage is created. It stores a notification
+    in the database for the assigned employee and sends an email and push notification.
+    """
     if instance.assigned_employee and created:
         subject = 'New Stage Assigned'
         message = (
@@ -47,6 +55,23 @@ def notify_employee_assignment(sender, instance, created, **kwargs):
             f'{instance.candidate_application.last_name}.'
         )
         recipient_list = [instance.assigned_employee.user.email]
+
+        # Create notification entry in the database
+        notification = Notification.objects.create(  # Assign the created Notification to a variable
+            user=instance.assigned_employee.user,
+            message=message
+        )
+
+        # Send the notification via WebSocket
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            f'user_{instance.assigned_employee.user.id}',  # Group name
+            {
+                'type': 'send_notification',
+                'message': message,
+                'id': notification.id  # Send notification ID
+            }
+        )
 
         # Send email asynchronously
         send_assignment_email.delay(subject, message, recipient_list)

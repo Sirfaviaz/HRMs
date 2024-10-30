@@ -60,3 +60,10 @@ class MeetingViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer, participants):
         serializer.save(organizer=self.request.user, participants=participants)
+
+    def list(self, request, *args, **kwargs):
+        user = request.user
+        # Filter meetings where the user is a participant
+        queryset = Meeting.objects.filter(participants=user)
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)

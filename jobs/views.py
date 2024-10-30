@@ -117,6 +117,21 @@ class StageViewSet(viewsets.ModelViewSet):
     serializer_class = StageSerializer
     permission_classes = [permissions.IsAuthenticated]
 
+    def get_queryset(self):
+        # Get job_posting ID from request parameters if available
+        job_posting_id = self.request.query_params.get('job_posting', None)
+        if job_posting_id:
+            try:
+                # Get the JobPosting and its related StageSet
+                job_posting = JobPosting.objects.get(id=job_posting_id)
+                stage_set = job_posting.stage_set
+                # Filter stages that belong to the JobPosting's StageSet
+                return Stage.objects.filter(stage_set=stage_set)
+            except JobPosting.DoesNotExist:
+                return Stage.objects.none()  # Return an empty queryset if no job posting is found
+        return Stage.objects.all()
+
+
 class CandidateStageViewSet(viewsets.ModelViewSet):
     queryset = CandidateStage.objects.all()
     serializer_class = CandidateStageSerializer

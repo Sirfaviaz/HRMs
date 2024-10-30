@@ -63,31 +63,35 @@ class AttendanceRecordListView(APIView):
 
 class AttendanceStatusView(APIView):
     """
-    View to get the clock-in status for the current day.
+    View to get the clock-in and clock-out status for the current day.
     """
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
-        print("1abc",request.user.id)
         id = request.user.id
-        # Get the current employee based on the authenticated user
-        employee = Employee.objects.get(id = id)
-        print("abc",employee.id)
+        print("id!!!!!!!!!!",id)
+        employee = Employee.objects.get(user_id=id)
         today = timezone.now().date()
+        print("empl!!!!!!!!!!!!!!!!!",employee.id)
 
         try:
             # Check today's attendance record
-            # print("true")
             attendance = AttendanceRecord.objects.get(employee=employee, date=today)
-            print("attendance",attendance, attendance.clock_out_time)
-            if attendance.clock_in_time and not attendance.clock_out_time:
-                print("True")
-                return Response({"is_clocked_in": True}, status=status.HTTP_200_OK)
-            else:
-                return Response({"is_clocked_in": False}, status=status.HTTP_200_OK)
+            print("!!!!!!!!!!!!!attem in:",attendance.clock_in_time)
+            is_clocked_in = bool(attendance.clock_in_time)
+            is_clocked_out = bool(attendance.clock_out_time)
+
+            return Response({
+                "is_clocked_in": is_clocked_in,
+                "is_clocked_out": is_clocked_out
+            }, status=status.HTTP_200_OK)
+
         except AttendanceRecord.DoesNotExist:
-            return Response({"is_clocked_in": False}, status=status.HTTP_200_OK)
-        
+            # If no record exists, it means the user hasn't clocked in yet
+            return Response({
+                "is_clocked_in": False,
+                "is_clocked_out": False
+            }, status=status.HTTP_200_OK)     
 
 
 class LeaveRequestViewSet(viewsets.ModelViewSet):
@@ -154,3 +158,46 @@ class EmployeeAttendanceRecordsView(generics.ListAPIView):
             start_date = timezone.datetime(now.year, now.month, 1).date()
             end_date = timezone.datetime(now.year, now.month, now.day).date()
             return AttendanceRecord.objects.filter(employee=selected_employee, date__range=[start_date, end_date])
+
+
+
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.utils import timezone
+from datetime import timedelta
+from .models import AttendanceRecord, Employee  # Assuming you have these models
+
+class EmployeeClockInStatusView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        emp_id = request.user.id
+        employee = Employee.objects.get(user=emp_id)
+        today = timezone.now().date()
+
+        try:
+            attendance = AttendanceRecord.objects.get(employee=employee, date=today)
+            if attendance.clock_in_time:
+                # Calculate how long the employee has been clocked in
+                now = timezone.now()
+                time_online = now - attendance.clock_in_time
+                hours_online = time_online.seconds // 3600
+                minutes_online = (time_online.seconds % 3600) // 60
+
+                return Response({
+                    "clocked_in": True,
+                    "clock_in_time": attendance.clock_in_time,
+                    "hours_online": hours_online,
+                    "minutes_online": minutes_online
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response({
+                    "clocked_in": False,
+                    "detail": "Not clocked in yet."
+                }, status=status.HTTP_200_OK)
+        except AttendanceRecord.DoesNotExist:
+            return Response({
+                "clocked_in": False,
+                "detail": "Not clocked in yet."
+            }, status=status.HTTP_200_OK)

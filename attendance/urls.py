@@ -1,5 +1,5 @@
 from django.urls import include, path
-from .views import AttendanceRecordListView, AttendanceStatusView, ClockInView, ClockOutView, EmployeeAttendanceRecordsView, LeaveRequestViewSet
+from .views import AttendanceRecordListView, AttendanceStatusView, ClockInView, ClockOutView, EmployeeAttendanceRecordsView, LeaveRequestViewSet, EmployeeClockInStatusView
 from rest_framework.routers import DefaultRouter
 
 
@@ -12,6 +12,6 @@ urlpatterns = [
     path('records/', AttendanceRecordListView.as_view(), name='attendance-records'),
     path('status/', AttendanceStatusView.as_view(), name='attendance-status'),
     path('attendance/records/', EmployeeAttendanceRecordsView.as_view(), name='attendance-records'),
-   
+    path('clock-in-status/', EmployeeClockInStatusView.as_view(), name='clock-in-status'),
     path('', include(router.urls)),
 ]
