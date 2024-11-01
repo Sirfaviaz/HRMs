@@ -1,8 +1,7 @@
-from django.contrib.auth import get_user_model
-from rest_framework import status, viewsets,permissions
+from rest_framework import status, viewsets, permissions
 from rest_framework.response import Response
+from django.contrib.auth import get_user_model
 from dateutil.parser import parse
-
 from meetings.models import Meeting
 from meetings.serializers import MeetingSerializer
 from meetings.utils import is_time_slot_available
@@ -63,7 +62,11 @@ class MeetingViewSet(viewsets.ModelViewSet):
 
     def list(self, request, *args, **kwargs):
         user = request.user
-        # Filter meetings where the user is a participant
-        queryset = Meeting.objects.filter(participants=user)
+        # Check if the user is an admin or manager
+        if user.is_admin or user.is_manager:
+            queryset = Meeting.objects.all()  # Retrieve all meetings for admins or managers
+        else:
+            queryset = Meeting.objects.filter(participants=user)  # Only meetings where the user is a participant
+
         serializer = self.get_serializer(queryset, many=True)
         return Response(serializer.data)
